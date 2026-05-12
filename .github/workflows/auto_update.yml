@@ -65,8 +65,8 @@ jobs:
                 -H "Authorization: token ${GH_TOKEN}" \
                 -H "Accept: application/vnd.github+json" \
                 -d "{
-                  \"title\": \"Automated Regex Updates\",
-                  \"body\": \"This PR contains automated updates via regex script.\",
+                  \"title\": \"SAP Load Balancer Config Updates\",
+                  \"body\": \"This PR contains SAP Load Balancer Config Updates via github automated workflow script.\",
                   \"head\": \"${FEATURE_BRANCH}\",
                   \"base\": \"${BASE_BRANCH}\"
                 }"
