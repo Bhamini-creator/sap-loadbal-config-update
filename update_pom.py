@@ -15,6 +15,7 @@ def increment_version(version):
 
 
 def strip_namespace(root):
+    """Remove namespace to allow simple tag search"""
     for elem in root.iter():
         if "}" in elem.tag:
             elem.tag = elem.tag.split("}", 1)[1]
@@ -32,13 +33,14 @@ def update_pom(file_path="pom.xml"):
         # ✅ Remove namespace
         strip_namespace(root)
 
-        # ✅ Find version
-        version_elem = root.find("version")
+        # ✅ ✅ Find <version> anywhere in XML
+        version_elem = root.find(".//version")
 
+        # ✅ Fallback: parent version
         if version_elem is None:
             parent = root.find("parent")
             if parent is not None:
-                version_elem = parent.find("version")
+                version_elem = parent.find(".//version")
 
         if version_elem is None:
             print("❌ No <version> tag found")
@@ -55,11 +57,7 @@ def update_pom(file_path="pom.xml"):
 
         version_elem.text = new_version
 
-        # ✅ ✅ Write WITHOUT XML declaration
-        xml_str = ET.tostring(root, encoding="unicode")
-
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(xml_str)
+        tree.write(file_path, encoding="utf-8", xml_declaration=True)
 
         return True
 
