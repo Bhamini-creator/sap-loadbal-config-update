@@ -40,8 +40,8 @@ jobs:
             cd $repo_name
 
             # Configure git
-            git config user.name "github-actions"
-            git config user.email "github-actions@github.com"
+            git config user.name "Bhamini-creator"
+            git config user.email "bhamini.kashyap91@gmail.com"
 
             # Checkout source branch
             git checkout ${SOURCE_BRANCH}
