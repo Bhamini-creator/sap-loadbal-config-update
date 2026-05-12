@@ -3,27 +3,22 @@ import os
 
 
 def increment_version(version):
-    """
-    Remove '-SNAPSHOT' and increment last numeric part.
-    Examples:
-      1.0.0-SNAPSHOT → 1.0.1
-      1.2.3          → 1.2.4
-      2.5            → 2.6
-      3              → 4
-    """
-
-    # ✅ Remove SNAPSHOT
     version = version.replace("-SNAPSHOT", "").strip()
-
     parts = version.split(".")
 
-    # ✅ Increment last numeric segment
     for i in range(len(parts) - 1, -1, -1):
         if parts[i].isdigit():
             parts[i] = str(int(parts[i]) + 1)
             break
 
     return ".".join(parts)
+
+
+def strip_namespace(root):
+    """Remove namespace to allow simple tag search"""
+    for elem in root.iter():
+        if "}" in elem.tag:
+            elem.tag = elem.tag.split("}", 1)[1]
 
 
 def update_pom(file_path="pom.xml"):
@@ -35,27 +30,29 @@ def update_pom(file_path="pom.xml"):
         tree = ET.parse(file_path)
         root = tree.getroot()
 
-        # ✅ No namespace handling
+        # ✅ IMPORTANT: remove namespace dynamically
+        strip_namespace(root)
+
+        # ✅ Now this will work
         version_elem = root.find("version")
 
-        # ✅ Check parent version if needed
         if version_elem is None:
             parent = root.find("parent")
             if parent is not None:
                 version_elem = parent.find("version")
 
         if version_elem is None:
-            print("⚠️ No <version> tag found")
+            print("❌ No <version> tag found")
             return False
 
         old_version = version_elem.text.strip()
         new_version = increment_version(old_version)
 
         if old_version == new_version:
-            print("⚠️ No version change needed")
+            print("⚠️ No version change")
             return False
 
-        print(f"✅ Updating version: {old_version} → {new_version}")
+        print(f"✅ Updating: {old_version} → {new_version}")
 
         version_elem.text = new_version
 
@@ -64,10 +61,9 @@ def update_pom(file_path="pom.xml"):
         return True
 
     except Exception as e:
-        print(f"❌ Error updating pom.xml: {e}")
+        print(f"❌ Error: {e}")
         return False
 
 
 if __name__ == "__main__":
-    updated = update_pom()
-    print("✅ Done" if updated else "⚠️ No update applied")
+    update_pom()
