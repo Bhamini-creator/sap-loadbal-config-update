@@ -1,7 +1,7 @@
 import xml.etree.ElementTree as ET
 import os
 
-# ✅ Register default namespace to prevent ns0
+# ✅ Prevent ns0 prefix
 ET.register_namespace('', "http://maven.apache.org/POM/4.0.0")
 
 
@@ -14,7 +14,8 @@ def increment_version(version):
     while len(parts) < 3:
         parts.append(0)
 
-    parts[-1] += 1  # patch bump
+    # ✅ Patch bump only (safe default)
+    parts[-1] += 1
 
     return ".".join(map(str, parts))
 
@@ -26,12 +27,19 @@ def get_namespace(tag):
 
 
 def find_project_version(root, ns):
-    # ✅ Only direct project version
+    """
+    ✅ STRICT RULES:
+    - Only direct child of <project>
+    - OR direct child of <parent>
+    - NEVER traverse deeper (.// is NOT used)
+    """
+
+    # ✅ Step 1: <project><version>
     for child in root:
         if child.tag == f"{ns}version":
             return child
 
-    # ✅ parent fallback
+    # ✅ Step 2: <project><parent><version>
     parent = root.find(f"{ns}parent")
     if parent is not None:
         for child in parent:
@@ -60,6 +68,7 @@ def update_pom(file_path="pom.xml"):
 
         old_version = version_elem.text.strip()
 
+        # ✅ Skip dynamic versions
         if old_version.startswith("${"):
             print(f"⚠️ Skipping dynamic version: {old_version}")
             return False
@@ -72,9 +81,10 @@ def update_pom(file_path="pom.xml"):
 
         print(f"✅ Updating version: {old_version} → {new_version}")
 
+        # ✅ Update ONLY project version
         version_elem.text = new_version
 
-        # ✅ Write XML (ns0 removed)
+        # ✅ Write back safely (no ns0, preserve namespace)
         tree.write(file_path, encoding="utf-8", xml_declaration=True)
 
         return True
