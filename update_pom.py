@@ -15,7 +15,6 @@ def increment_version(version):
 
 
 def strip_namespace(root):
-    """Remove namespace to allow simple tag search"""
     for elem in root.iter():
         if "}" in elem.tag:
             elem.tag = elem.tag.split("}", 1)[1]
@@ -33,31 +32,41 @@ def update_pom(file_path="pom.xml"):
         # ✅ Remove namespace
         strip_namespace(root)
 
-        # ✅ ✅ Find <version> anywhere in XML
-        version_elem = root.find(".//version")
+        version_elem = None
 
-        # ✅ Fallback: parent version
+        # ✅ 1. PRIORITY: direct project version
+        for child in list(root):
+            if child.tag == "version":
+                version_elem = child
+                break
+
+        # ✅ 2. FALLBACK: parent version (only if no project version)
         if version_elem is None:
             parent = root.find("parent")
             if parent is not None:
-                version_elem = parent.find(".//version")
+                for child in list(parent):
+                    if child.tag == "version":
+                        version_elem = child
+                        break
+
+        # ❌ DO NOT use .//version (this avoids dependencies/plugins)
 
         if version_elem is None:
-            print("❌ No <version> tag found")
+            print("❌ No project <version> found")
             return False
 
         old_version = version_elem.text.strip()
         new_version = increment_version(old_version)
 
         if old_version == new_version:
-            print("⚠️ No version change")
+            print("⚠️ No version change needed")
             return False
 
-        print(f"✅ Updating: {old_version} → {new_version}")
+        print(f"✅ Updating project version: {old_version} → {new_version}")
 
         version_elem.text = new_version
 
-        tree.write(file_path, encoding="utf-8", xml_declaration=True)
+        tree.write(file_path, encoding="UTF-8", xml_declaration=True)
 
         return True
 
