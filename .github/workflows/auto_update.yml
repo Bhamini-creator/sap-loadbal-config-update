@@ -51,7 +51,7 @@ jobs:
             git checkout -b ${FEATURE_BRANCH}
 
             # Run Python regex update
-            python ../update_script.py
+            python ../update_code.py
 
             # Check if changes exist
             if [[ -n $(git status --porcelain) ]]; then
