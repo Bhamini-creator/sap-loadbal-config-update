@@ -8,7 +8,6 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      FEATURE_BRANCH: "feature/sap-loadbal-config-update-$(date +%s)"
       BASE_BRANCH: "develop"
       SOURCE_BRANCH: "main"
 
@@ -16,14 +15,17 @@ jobs:
       - name: Checkout this repo
         uses: actions/checkout@v4
 
+      - name: Generate dynamic branch name
+        id: vars
+        run: echo "FEATURE_BRANCH=feature/sap-loadbal-config-update-$(date +%s)" >> $GITHUB_ENV
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies (if needed)
-        run: |
-          pip install requests PyGithub
+      - name: Install dependencies
+        run: pip install requests PyGithub
 
       - name: Run bulk update script
         env:
@@ -32,51 +34,48 @@ jobs:
           set -e
 
           while IFS= read -r repo; do
+            echo "-----------------------------"
             echo "Processing $repo"
 
-            # Clone repo
-            git clone https://x-access-token:${GH_TOKEN}@github.com/${repo}.git
-            repo_name=$(basename "$repo")
-            cd $repo_name
+            # ✅ Sanitize repo name
+            repo=$(echo "$repo" | tr -d '[:space:]')
+            repo=$(echo "$repo" | sed 's/\.git$//')
+            repo=$(echo "$repo" | sed 's/[?]//g')
 
-            # Configure git
-            git config user.name "Bhamini-creator"
-            git config user.email "bhamini.kashyap91@gmail.com"
+            echo "Sanitized repo: $repo"
 
-            # Checkout source branch
-            git checkout ${SOURCE_BRANCH}
-            git pull origin ${SOURCE_BRANCH}
-
-            # Create feature branch
-            git checkout -b ${FEATURE_BRANCH}
-
-            # Run Python regex update
-            python ../update_code.py
-
-            # Check if changes exist
-            if [[ -n $(git status --porcelain) ]]; then
-              git add .
-              git commit -m "SAP Load Balancer Config Update"
-
-              git push origin ${FEATURE_BRANCH}
-
-              # Create PR using API
-              curl -s -X POST https://api.github.com/repos/${repo}/pulls \
-                -H "Authorization: token ${GH_TOKEN}" \
-                -H "Accept: application/vnd.github+json" \
-                -d "{
-                  \"title\": \"SAP Load Balancer Config Updates\",
-                  \"body\": \"This PR contains SAP Load Balancer Config Updates via github automated workflow script.\",
-                  \"head\": \"${FEATURE_BRANCH}\",
-                  \"base\": \"${BASE_BRANCH}\"
-                }"
-
-              echo "PR created for $repo"
-            else
-              echo "No changes detected for $repo"
+            # ✅ Skip empty lines
+            if [ -z "$repo" ]; then
+              echo "Skipping empty line"
+              continue
             fi
 
-            cd ..
-            rm -rf $repo_name
+            # ✅ Validate repo format
+            if [[ ! "$repo" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
+              echo "Skipping invalid repo: $repo"
+              continue
+            fi
 
-          done < repos.txt
+            # ✅ Clone repo
+            echo "Cloning: https://github.com/${repo}.git"
+            git clone https://x-access-token:${GH_TOKEN}@github.com/${repo}.git || {
+              echo "❌ Failed to clone $repo"
+              continue
+            }
+
+            repo_name=$(basename "$repo")
+            cd "$repo_name"
+
+            # ✅ Configure git
+            git config user.name "github-actions"
+            git config user.email "github-actions@github.com"
+
+            # ✅ Checkout source branch (main/master safe fallback)
+            git fetch origin
+            git checkout ${SOURCE_BRANCH} || git checkout master
+            git pull origin $(git branch --show-current)
+
+            # ✅ Create feature branch
+            git checkout -b ${FEATURE_BRANCH}
+
+            # ✅ Run Python update
