@@ -14,8 +14,7 @@ def increment_version(version):
     while len(parts) < 3:
         parts.append(0)
 
-    # ✅ Patch bump only (safe default)
-    parts[-1] += 1
+    parts[-1] += 1  # patch increment
 
     return ".".join(map(str, parts))
 
@@ -27,19 +26,12 @@ def get_namespace(tag):
 
 
 def find_project_version(root, ns):
-    """
-    ✅ STRICT RULES:
-    - Only direct child of <project>
-    - OR direct child of <parent>
-    - NEVER traverse deeper (.// is NOT used)
-    """
-
-    # ✅ Step 1: <project><version>
+    # ✅ Only direct project version
     for child in root:
         if child.tag == f"{ns}version":
             return child
 
-    # ✅ Step 2: <project><parent><version>
+    # ✅ Parent fallback
     parent = root.find(f"{ns}parent")
     if parent is not None:
         for child in parent:
@@ -68,7 +60,6 @@ def update_pom(file_path="pom.xml"):
 
         old_version = version_elem.text.strip()
 
-        # ✅ Skip dynamic versions
         if old_version.startswith("${"):
             print(f"⚠️ Skipping dynamic version: {old_version}")
             return False
@@ -81,11 +72,13 @@ def update_pom(file_path="pom.xml"):
 
         print(f"✅ Updating version: {old_version} → {new_version}")
 
-        # ✅ Update ONLY project version
         version_elem.text = new_version
 
-        # ✅ Write back safely (no ns0, preserve namespace)
-        tree.write(file_path, encoding="utf-8", xml_declaration=True)
+        # ✅ ✅ Write WITHOUT XML declaration
+        xml_str = ET.tostring(root, encoding="unicode")
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(xml_str)
 
         return True
 
