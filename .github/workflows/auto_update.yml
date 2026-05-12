@@ -78,8 +78,11 @@ jobs:
             # ✅ Create feature branch
             git checkout -b ${FEATURE_BRANCH}
 
-            # ✅ Run Python update
+            # ✅ Run Python SAP Load Balancer Config update
             python ../update_code.py
+
+            # ✅ Run Python pom version update
+            python ../update_pom.py
 
             # ✅ Commit only if changes exist
             if [[ -n $(git status --porcelain) ]]; then
