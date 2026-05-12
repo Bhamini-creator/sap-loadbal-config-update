@@ -10,7 +10,7 @@ jobs:
     env:
       FEATURE_BRANCH: "feature/sap-loadbal-config-update-$(date +%s)"
       BASE_BRANCH: "develop"
-      SOURCE_BRANCH: "master"
+      SOURCE_BRANCH: "main"
 
     steps:
       - name: Checkout this repo
