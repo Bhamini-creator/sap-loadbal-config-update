@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as ET
 import os
+import re
 
 # ✅ Prevent ns0 prefix
 ET.register_namespace('', "http://maven.apache.org/POM/4.0.0")
@@ -14,7 +15,7 @@ def increment_version(version):
     while len(parts) < 3:
         parts.append(0)
 
-    parts[-1] += 1  # patch increment
+    parts[-1] += 1  # ✅ patch increment
 
     return ".".join(map(str, parts))
 
@@ -26,12 +27,21 @@ def get_namespace(tag):
 
 
 def find_project_version(root, ns):
-    # ✅ Only direct project version
+    """
+    ✅ STRICT LOGIC:
+    Only match:
+      - <project><version>
+      - <project><parent><version>
+
+    ❌ DO NOT use .//version (prevents dependency/plugin update)
+    """
+
+    # ✅ Direct project version only
     for child in root:
         if child.tag == f"{ns}version":
             return child
 
-    # ✅ Parent fallback
+    # ✅ Parent fallback only
     parent = root.find(f"{ns}parent")
     if parent is not None:
         for child in parent:
@@ -41,17 +51,30 @@ def find_project_version(root, ns):
     return None
 
 
+def extract_xml_header(file_path):
+    """Preserve original XML header"""
+    with open(file_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    match = re.match(r'(<!\?xml[^>]+\?>)', content)
+    return match.group(1) if match else ""
+
+
 def update_pom(file_path="pom.xml"):
     if not os.path.exists(file_path):
         print("❌ pom.xml not found")
         return False
 
     try:
+        # ✅ Preserve header
+        xml_header = extract_xml_header(file_path)
+
         tree = ET.parse(file_path)
         root = tree.getroot()
 
         ns = get_namespace(root.tag)
 
+        # ✅ Get ONLY project version
         version_elem = find_project_version(root, ns)
 
         if version_elem is None or not version_elem.text:
@@ -60,6 +83,7 @@ def update_pom(file_path="pom.xml"):
 
         old_version = version_elem.text.strip()
 
+        # ✅ Skip dynamic values
         if old_version.startswith("${"):
             print(f"⚠️ Skipping dynamic version: {old_version}")
             return False
@@ -72,13 +96,17 @@ def update_pom(file_path="pom.xml"):
 
         print(f"✅ Updating version: {old_version} → {new_version}")
 
+        # ✅ Update ONLY this node
         version_elem.text = new_version
 
-        # ✅ ✅ Write WITHOUT XML declaration
-        xml_str = ET.tostring(root, encoding="unicode")
+        # ✅ Convert XML (preserve namespace)
+        xml_body = ET.tostring(root, encoding="unicode")
 
+        # ✅ Write back (preserve header)
         with open(file_path, "w", encoding="utf-8") as f:
-            f.write(xml_str)
+            if xml_header:
+                f.write(xml_header + "\n")
+            f.write(xml_body)
 
         return True
 
