@@ -88,4 +88,3 @@ def update_pom(file_path="pom.xml"):
 
 if __name__ == "__main__":
     update_pom()
-``
