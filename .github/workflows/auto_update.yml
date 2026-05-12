@@ -1,4 +1,5 @@
-name: Auto Update Workflow
+
+name: Bulk Repo Update & PR Creation
 
 on:
   workflow_dispatch:
@@ -7,63 +8,73 @@ jobs:
   update-repos:
     runs-on: ubuntu-latest
 
+    env:
+      FEATURE_BRANCH: "feature/sap-loadbal-config-update-$(date +%s)"
+      BASE_BRANCH: "develop"
+      SOURCE_BRANCH: "master"
+
     steps:
-      - name: Checkout controlling repo
+      - name: Checkout this repo
         uses: actions/checkout@v4
 
-      - name: Set Git config
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (if needed)
         run: |
-          git config --global user.name "automation-bot"
-          git config --global user.email "automation@users.noreply.github.com"
+          pip install requests PyGithub
 
-      - name: Install GitHub CLI
-        run: sudo apt-get install gh -y
-
-      - name: Auth GitHub CLI
-        run: echo "${{ secrets.GH_TOKEN }}" | gh auth login --with-token
-
-      - name: Process Repositories
+      - name: Run bulk update script
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          FEATURE_BRANCH=""feature/sap-loadbal-config-update-$(date +%s)""
-          
-          while read repo; do
+          set -e
+
+          while IFS= read -r repo; do
             echo "Processing $repo"
 
             # Clone repo
-            gh repo clone $repo
-            repo_name=$(basename $repo)
-
+            git clone https://x-access-token:${GH_TOKEN}@github.com/${repo}.git
+            repo_name=$(basename "$repo")
             cd $repo_name
 
-            # Checkout master and create feature branch
-            git checkout master
-            git pull origin master
-            git checkout -b $FEATURE_BRANCH
+            # Configure git
+            git config user.name "github-actions"
+            git config user.email "github-actions@github.com"
 
-            # Copy Python script from main workflow repo
-            cp ../update_code.py .
+            # Checkout source branch
+            git checkout ${SOURCE_BRANCH}
+            git pull origin ${SOURCE_BRANCH}
 
-            # Run update
-            output=$(python3 update_code.py)
+            # Create feature branch
+            git checkout -b ${FEATURE_BRANCH}
 
-            if [[ "$output" == *"CHANGES_MADE"* ]]; then
-              echo "Changes detected, committing..."
+            # Run Python regex update
+            python ../update_script.py
 
+            # Check if changes exist
+            if [[ -n $(git status --porcelain) ]]; then
               git add .
               git commit -m "Automated regex update"
 
-              git push origin $FEATURE_BRANCH
+              git push origin ${FEATURE_BRANCH}
 
-              echo "Creating PR..."
+              # Create PR using API
+              curl -s -X POST https://api.github.com/repos/${repo}/pulls \
+                -H "Authorization: token ${GH_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -d "{
+                  \"title\": \"Automated Regex Updates\",
+                  \"body\": \"This PR contains automated updates via regex script.\",
+                  \"head\": \"${FEATURE_BRANCH}\",
+                  \"base\": \"${BASE_BRANCH}\"
+                }"
 
-              gh pr create \
-                --base develop \
-                --head $FEATURE_BRANCH \
-                --title "Automated Regex Code Update" \
-                --body "Bulk automated changes using regex script"
-
+              echo "PR created for $repo"
             else
-              echo "No changes in $repo_name"
+              echo "No changes detected for $repo"
             fi
 
             cd ..
