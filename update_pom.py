@@ -1,37 +1,37 @@
 import xml.etree.ElementTree as ET
 import os
 
+# ✅ Register default namespace to prevent ns0
+ET.register_namespace('', "http://maven.apache.org/POM/4.0.0")
+
 
 def increment_version(version):
     version = version.replace("-SNAPSHOT", "").strip()
+
     parts = version.split(".")
+    parts = [int(p) if p.isdigit() else 0 for p in parts]
 
-    for i in range(len(parts) - 1, -1, -1):
-        if parts[i].isdigit():
-            parts[i] = str(int(parts[i]) + 1)
-            break
+    while len(parts) < 3:
+        parts.append(0)
 
-    return ".".join(parts)
+    parts[-1] += 1  # patch bump
+
+    return ".".join(map(str, parts))
 
 
-def get_namespace(root):
-    """Extract namespace from root tag"""
-    if root.tag.startswith("{"):
-        return root.tag.split("}")[0] + "}"
+def get_namespace(tag):
+    if tag.startswith("{"):
+        return tag.split("}")[0] + "}"
     return ""
 
 
-def get_project_version_element(root, ns):
-    """
-    ✅ Namespace-safe strict matching
-    """
-
-    # ✅ Direct project version
+def find_project_version(root, ns):
+    # ✅ Only direct project version
     for child in root:
         if child.tag == f"{ns}version":
             return child
 
-    # ✅ Parent fallback
+    # ✅ parent fallback
     parent = root.find(f"{ns}parent")
     if parent is not None:
         for child in parent:
@@ -50,10 +50,9 @@ def update_pom(file_path="pom.xml"):
         tree = ET.parse(file_path)
         root = tree.getroot()
 
-        # ✅ KEEP namespace (do NOT strip)
-        ns = get_namespace(root)
+        ns = get_namespace(root.tag)
 
-        version_elem = get_project_version_element(root, ns)
+        version_elem = find_project_version(root, ns)
 
         if version_elem is None or not version_elem.text:
             print("❌ No valid project <version> found")
@@ -61,7 +60,6 @@ def update_pom(file_path="pom.xml"):
 
         old_version = version_elem.text.strip()
 
-        # ✅ Skip property-based version
         if old_version.startswith("${"):
             print(f"⚠️ Skipping dynamic version: {old_version}")
             return False
@@ -76,7 +74,7 @@ def update_pom(file_path="pom.xml"):
 
         version_elem.text = new_version
 
-        # ✅ Write WITHOUT losing namespace
+        # ✅ Write XML (ns0 removed)
         tree.write(file_path, encoding="utf-8", xml_declaration=True)
 
         return True
