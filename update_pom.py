@@ -19,11 +19,11 @@ def increment_version(version):
     return ".".join(map(str, parts))
 
 
-def split_xml_header(content):
+def split_header_and_body(content):
     """
-    ✅ Split XML header and body WITHOUT modifying it
+    ✅ Extract header WITHOUT modifying it
     """
-    match = re.match(r'(<!\?xml[^>]+\?>\s*)(.*)', content, re.DOTALL)
+    match = re.match(r'(<\?xml[^>]+\?>\s*)(.*)', content, re.DOTALL)
     if match:
         return match.group(1), match.group(2)
     return "", content
@@ -36,12 +36,19 @@ def get_namespace(tag):
 
 
 def find_project_version(root, ns):
-    # ✅ Only direct <project><version>
+    """
+    ✅ STRICT:
+    Only allow:
+      - <project><version>
+      - <project><parent><version>
+    """
+
+    # ✅ Direct project version ONLY
     for child in root:
         if child.tag == f"{ns}version":
             return child
 
-    # ✅ Fallback: <parent><version>
+    # ✅ Parent fallback ONLY
     parent = root.find(f"{ns}parent")
     if parent is not None:
         for child in parent:
@@ -57,15 +64,15 @@ def update_pom(file_path="pom.xml"):
         return False
 
     try:
-        # ✅ Read file as text
+        # ✅ Step 1: Read full file
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # ✅ Split header and XML body
-        xml_header, xml_body = split_xml_header(content)
+        # ✅ Step 2: Split header and XML body
+        header, body = split_header_and_body(content)
 
-        # ✅ Parse ONLY the body
-        root = ET.fromstring(xml_body)
+        # ✅ Step 3: Parse ONLY XML body
+        root = ET.fromstring(body)
 
         ns = get_namespace(root.tag)
 
@@ -77,6 +84,7 @@ def update_pom(file_path="pom.xml"):
 
         old_version = version_elem.text.strip()
 
+        # ✅ Skip property-based version
         if old_version.startswith("${"):
             print(f"⚠️ Skipping dynamic version: {old_version}")
             return False
@@ -89,15 +97,15 @@ def update_pom(file_path="pom.xml"):
 
         print(f"✅ Updating version: {old_version} → {new_version}")
 
+        # ✅ Update ONLY project version
         version_elem.text = new_version
 
-        # ✅ Convert back to XML string (ONLY body)
+        # ✅ Convert body back to XML
         updated_body = ET.tostring(root, encoding="unicode")
 
-        # ✅ Write back WITHOUT touching header
+        # ✅ Step 4: Write back (header untouched)
         with open(file_path, "w", encoding="utf-8") as f:
-            if xml_header:
-                f.write(xml_header)  # unchanged
+            f.write(header)      # EXACT original header
             f.write(updated_body)
 
         return True
