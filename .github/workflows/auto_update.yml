@@ -79,3 +79,31 @@ jobs:
             git checkout -b ${FEATURE_BRANCH}
 
             # ✅ Run Python update
+            python ../update_code.py
+
+            # ✅ Commit only if changes exist
+            if [[ -n $(git status --porcelain) ]]; then
+              git add .
+              git commit -m "SAP Load Balancer Config Update"
+              git push origin ${FEATURE_BRANCH}
+
+              # ✅ Create PR
+              curl -s -X POST https://api.github.com/repos/${repo}/pulls \
+                -H "Authorization: token ${GH_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -d "{
+                  \"title\": \"SAP Load Balancer Config Updates\",
+                  \"body\": \"Automated update via GitHub Actions.\",
+                  \"head\": \"${FEATURE_BRANCH}\",
+                  \"base\": \"${BASE_BRANCH}\"
+                }"
+
+              echo "✅ PR created for $repo"
+            else
+              echo "⚠️ No changes detected for $repo"
+            fi
+
+            cd ..
+            rm -rf "$repo_name"
+
+          done < repos.txt
