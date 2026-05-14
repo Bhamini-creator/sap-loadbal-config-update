@@ -16,7 +16,6 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Generate dynamic branch name
-        id: vars
         run: echo "FEATURE_BRANCH=feature/sap-loadbal-config-update-$(date +%s)" >> $GITHUB_ENV
 
       - name: Set up Python
@@ -67,10 +66,10 @@ jobs:
             cd "$repo_name"
 
             # ✅ Configure git
-            git config user.name "Bhamini-creator"
-            git config user.email "bhamini.kashyap91@gmail.com"
+            git config user.name "github-actions"
+            git config user.email "github-actions@github.com"
 
-            # ✅ Checkout source branch (main/master safe fallback)
+            # ✅ Checkout source branch
             git fetch origin
             git checkout ${SOURCE_BRANCH} || git checkout master
             git pull origin $(git branch --show-current)
@@ -78,16 +77,21 @@ jobs:
             # ✅ Create feature branch
             git checkout -b ${FEATURE_BRANCH}
 
-            # ✅ Run Python SAP Load Balancer Config update
+            # ✅ Step 1: Run main update script
             python ../update_code.py
 
-            # ✅ Run Python pom version update
-            python ../update_pom.py
+            # ✅ Step 2: Run pom update ONLY if changes detected
+            if [[ -n $(git status --porcelain) ]]; then
+              echo "✅ Changes detected after update_code.py"
+              python ../update_pom.py
+            else
+              echo "⚠️ No changes after update_code.py, skipping pom update"
+            fi
 
-            # ✅ Commit only if changes exist
+            # ✅ Step 3: Final commit only if changes exist
             if [[ -n $(git status --porcelain) ]]; then
               git add .
-              git commit -m "SAP Load Balancer Config Update"
+              git commit -m "SAP Load Balancer Config Update + POM Version Update"
               git push origin ${FEATURE_BRANCH}
 
               # ✅ Create PR
@@ -110,3 +114,4 @@ jobs:
             rm -rf "$repo_name"
 
           done < repos.txt
+          
